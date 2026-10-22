@@ -1,0 +1,59 @@
+name: library
+
+on:
+  workflow_call:
+    inputs:
+      accelerator:
+        description: Accelerator folder name under accelerators/.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  library:
+    name: library
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout accelerator
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+
+      - name: Checkout pipeline config
+        uses: actions/checkout@v4
+        with:
+          repository: jktech-dev-accelrators/jktech-accelerators-deploy
+          ref: main
+          path: .jktech-deploy
+
+      - name: Read accelerator config
+        id: config
+        shell: bash
+        env:
+          ACCELERATOR: ${{ inputs.accelerator }}
+        run: python3 .jktech-deploy/scripts/read_config.py ".jktech-deploy/accelerators/${ACCELERATOR}/config.yml" --github-output
+
+      - name: Confirm selected accelerator
+        shell: bash
+        env:
+          ACCELERATOR: ${{ inputs.accelerator }}
+          CONFIG_NAME: ${{ steps.config.outputs.name }}
+        run: test "$CONFIG_NAME" = "$ACCELERATOR"
+
+      - name: Set up Python
+        if: steps.config.outputs.runtime == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ steps.config.outputs.version }}
+
+      - name: Install
+        run: ${{ steps.config.outputs.install }}
+
+      - name: Lint
+        run: ${{ steps.config.outputs.lint }}
+
+      - name: Test
+        run: ${{ steps.config.outputs.test }}
